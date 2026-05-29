@@ -12,7 +12,10 @@ var (
 	version       = "0.1.0"
 	configDirFlag string
 	userConfigDir = os.UserConfigDir
+	getenv        = os.Getenv
 )
+
+const configDirEnvVar = "ENVFUSE_CONFIG_DIR"
 
 var rootCmd = &cobra.Command{
 	Use:           "envfuse",
@@ -29,6 +32,9 @@ func GetUserConfigPath() (string, error) {
 	if configDirFlag != "" {
 		return filepath.Clean(configDirFlag), nil
 	}
+	if envDir := getenv(configDirEnvVar); envDir != "" {
+		return filepath.Clean(envDir), nil
+	}
 
 	dir, err := userConfigDir()
 	if err != nil {
@@ -36,6 +42,17 @@ func GetUserConfigPath() (string, error) {
 	}
 
 	return filepath.Join(dir, "envfuse"), nil
+}
+
+func EnsureUserConfigPath() (string, error) {
+	path, err := GetUserConfigPath()
+	if err != nil {
+		return "", err
+	}
+	if err = os.MkdirAll(path, 0o700); err != nil {
+		return "", fmt.Errorf("create config directory %q: %w", path, err)
+	}
+	return path, nil
 }
 
 func zeroBytes(data []byte) {

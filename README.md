@@ -29,11 +29,17 @@ It is designed for Git-native secret distribution:
 - **Crypto layer (`pkg/crypto`)**: thin wrappers over `age.Encrypt` and `age.Decrypt`.
 - **Root config resolution (`cmd/root.go`)**:
   - default base path = `os.UserConfigDir()/envfuse`
-  - override supported with `--config-dir`
+  - account-level override with `ENVFUSE_CONFIG_DIR`
+  - command-line override with `--config-dir` (highest precedence)
 
 Platform default config directory:
 - **Linux/macOS**: `~/.config/envfuse`
 - **Windows**: `%AppData%\\Roaming\\envfuse`
+
+Precedence for config directory resolution:
+1. `--config-dir`
+2. `ENVFUSE_CONFIG_DIR`
+3. platform default
 
 ## Runtime prerequisites
 
@@ -68,6 +74,20 @@ AGE-SECRET-KEY-1...
 Rules:
 - content is trimmed
 - empty content fails decryption
+
+### Native key management engine
+
+`envfuse` now provides built-in key material generation with production-safe defaults:
+
+```bash
+envfuse keys generate [--identity-out <identity.key>] [--recipients-out <recipients.txt>] [--force]
+```
+
+What it does:
+1. Generates a fresh age X25519 keypair.
+2. Writes private identity key to `<config-dir>/identity.key` (or `--identity-out`) with mode `0600`.
+3. Writes recipient public key list to `<config-dir>/recipients.txt` (or `--recipients-out`) with mode `0600`.
+4. Refuses to overwrite existing files unless `--force` is set.
 
 ## Command behavior and defaults
 
@@ -104,6 +124,20 @@ What happens:
 Defaults:
 - identity path: `<config-dir>/identity.key`
 - output path: `<config-dir>/decrypted.env`
+
+### Manifest command
+
+```bash
+envfuse manifest [--out <manifest.json>] [--config-dir <dir>]
+```
+
+What happens:
+1. Resolves config directory using the standard precedence.
+2. Ensures config directory exists with secure permissions.
+3. Generates a production-ready JSON manifest describing runtime paths and env var setup command.
+
+Defaults:
+- writes JSON to stdout unless `--out` is provided
 
 ## Local development
 
