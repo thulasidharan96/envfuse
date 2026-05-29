@@ -75,6 +75,20 @@ Rules:
 - content is trimmed
 - empty content fails decryption
 
+### Native key management engine
+
+`envfuse` now provides built-in key material generation with production-safe defaults:
+
+```bash
+envfuse keys generate [--identity-out <identity.key>] [--recipients-out <recipients.txt>] [--force]
+```
+
+What it does:
+1. Generates a fresh age X25519 keypair.
+2. Writes private identity key to `<config-dir>/identity.key` (or `--identity-out`) with mode `0600`.
+3. Writes recipient public key list to `<config-dir>/recipients.txt` (or `--recipients-out`) with mode `0600`.
+4. Refuses to overwrite existing files unless `--force` is set.
+
 ## Command behavior and defaults
 
 ### Encrypt command
