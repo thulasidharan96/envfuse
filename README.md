@@ -10,7 +10,7 @@ It uses [`filippo.io/age`](https://filippo.io/age) asymmetric encryption with X2
 - **Crypto layer**: `pkg/crypto` wraps `age` for multi-recipient encryption and single-identity decryption.
 - **Entry point**: `main.go` delegates execution to the root command.
 - **Config path model**: uses `os.UserConfigDir()` + `filepath.Join(..., "envfuse")`, resulting in:
-  - Windows: `%AppData%\\envfuse`
+  - Windows: `%AppData%\\Roaming\\envfuse`
   - macOS/Linux: `~/.config/envfuse`
 
 ## Security model

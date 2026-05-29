@@ -26,9 +26,9 @@ var decryptCmd = &cobra.Command{
 			return err
 		}
 
-		identityPath := filepath.Clean(decryptIdentityPath)
-		if identityPath == "." || identityPath == "" {
-			identityPath = filepath.Join(configPath, "identity.key")
+		identityPath := filepath.Join(configPath, "identity.key")
+		if decryptIdentityPath != "" {
+			identityPath = filepath.Clean(decryptIdentityPath)
 		}
 
 		identityRaw, err := os.ReadFile(identityPath)
@@ -53,9 +53,9 @@ var decryptCmd = &cobra.Command{
 		}
 		defer zeroBytes(decrypted)
 
-		outPath := filepath.Clean(decryptOutFile)
-		if outPath == "." || outPath == "" {
-			outPath = filepath.Join(configPath, "decrypted.env")
+		outPath := filepath.Join(configPath, "decrypted.env")
+		if decryptOutFile != "" {
+			outPath = filepath.Clean(decryptOutFile)
 		}
 
 		if err = os.WriteFile(outPath, decrypted, 0o600); err != nil {
@@ -64,12 +64,6 @@ var decryptCmd = &cobra.Command{
 
 		return nil
 	},
-}
-
-func zeroBytes(data []byte) {
-	for i := range data {
-		data[i] = 0
-	}
 }
 
 func init() {

@@ -42,9 +42,9 @@ var encryptCmd = &cobra.Command{
 			return err
 		}
 
-		outPath := filepath.Clean(encryptOutFile)
-		if outPath == "." || outPath == "" {
-			outPath = targetPath + ".age"
+		outPath := targetPath + ".age"
+		if encryptOutFile != "" {
+			outPath = filepath.Clean(encryptOutFile)
 		}
 
 		if err = os.WriteFile(outPath, encrypted, 0o600); err != nil {
@@ -63,7 +63,7 @@ func parseRecipientFile(path string) ([]string, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	keys := make([]string, 0)
+	keys := make([]string, 0, 8)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {

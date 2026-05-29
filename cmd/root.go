@@ -38,6 +38,12 @@ func GetUserConfigPath() (string, error) {
 	return filepath.Join(dir, "envfuse"), nil
 }
 
+func zeroBytes(data []byte) {
+	for i := range data {
+		data[i] = 0
+	}
+}
+
 func init() {
 	rootCmd.Version = version
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
