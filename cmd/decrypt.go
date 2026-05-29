@@ -21,7 +21,7 @@ var decryptCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		targetPath := filepath.Clean(args[0])
-		configPath, err := GetUserConfigPath()
+		configPath, err := EnsureUserConfigPath()
 		if err != nil {
 			return err
 		}
