@@ -35,9 +35,9 @@ var encryptCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("read target file %q: %w", targetPath, err)
 		}
-		defer zeroBytes(payload)
 
 		encrypted, err := enc.EncryptBytes(payload, recipients)
+		zeroBytes(payload)
 		if err != nil {
 			return err
 		}
@@ -63,7 +63,7 @@ func parseRecipientFile(path string) ([]string, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	keys := make([]string, 0, 8)
+	keys := make([]string, 0)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {

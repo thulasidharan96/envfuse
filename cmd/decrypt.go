@@ -35,9 +35,9 @@ var decryptCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("read identity file %q: %w", identityPath, err)
 		}
-		defer zeroBytes(identityRaw)
 
 		identityKey := strings.TrimSpace(string(identityRaw))
+		zeroBytes(identityRaw)
 		if identityKey == "" {
 			return fmt.Errorf("identity file %q is empty", identityPath)
 		}
