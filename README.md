@@ -139,6 +139,12 @@ Before building release artifacts, GoReleaser runs:
 - `go mod tidy`
 - `go test ./...`
 
+CI/CD delivery:
+- GitHub Actions workflow: `.github/workflows/release.yml`
+- automatic release on pushed tags matching `v*` (for example `v1.0.0`)
+- manual release via `workflow_dispatch`
+- artifacts are uploaded to GitHub Releases using GoReleaser
+
 ## Contributing
 
 1. Fork and create a feature branch.
