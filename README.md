@@ -35,8 +35,6 @@ Platform default config directory:
 - **Linux/macOS**: `~/.config/envfuse`
 - **Windows**: `%AppData%\\Roaming\\envfuse`
 
-## Prerequisites and required configuration
-
 ## Runtime prerequisites
 
 - Go 1.22+ (for building from source)
@@ -124,7 +122,7 @@ go build ./...
 
 ## Release as a cross-platform CLI tool
 
-This repository is already configured to release `envfuse` as a CLI binary for Linux, macOS, and Windows via GoReleaser (`/tmp/workspace/thulasidharan96/envfuse/.goreleaser.yaml`).
+This repository is already configured to release `envfuse` as a CLI binary for Linux, macOS, and Windows via GoReleaser (`.goreleaser.yaml`).
 
 Release matrix:
 - **GOOS**: `linux`, `darwin` (macOS), `windows`
