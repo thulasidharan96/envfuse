@@ -51,4 +51,3 @@ func TestWriteFileAtomicNoOverwrite(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-

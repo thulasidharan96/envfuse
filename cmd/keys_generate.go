@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	generateIdentityOutPath  string
+	generateIdentityOutPath   string
 	generateRecipientsOutPath string
 	generateForceOverwrite    bool
 )
