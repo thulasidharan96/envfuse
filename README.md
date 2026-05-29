@@ -1,190 +1,135 @@
 # envfuse
 
-`envfuse` is a Go CLI package/application for encrypting and decrypting `.env` files (and other binary/text assets) using [`filippo.io/age`](https://filippo.io/age) X25519 keys.
+`envfuse` is a Go CLI for Git-native secret and asset synchronization using [`filippo.io/age`](https://filippo.io/age) X25519 encryption.
 
-It is designed for Git-native secret distribution:
-- commit only encrypted artifacts (`*.age`)
-- keep private identity keys local
-- decrypt only on trusted developer/runner machines
+It now supports **single-command Workspace Synchronization** with a repository blueprint (`envfuse.yaml`).
 
-## Why this approach
+## Core capabilities
 
-- **No centralized secret manager required** for basic team workflows.
-- **Asymmetric crypto model**: encryption uses public recipient keys; decryption requires a private identity key.
-- **Simple CI/dev automation**: encrypted files can safely live in repository history while private keys stay outside Git.
+- Multi-recipient encryption (`envfuse encrypt`)
+- Private-key decryption (`envfuse decrypt`)
+- Native keypair generation (`envfuse keys generate`)
+- Runtime manifest diagnostics (`envfuse manifest`)
+- Workspace push/pull synchronization (`envfuse sync`)
 
-## How it works
+## Workspace blueprint (`envfuse.yaml`)
 
-### High-level flow
+Place `envfuse.yaml` at the root of your repository:
 
-1. Team members generate local age identity keys (`AGE-SECRET-KEY-...`) and share only their matching recipient public keys (`age1...`).
-2. A source file (for example `app.env`) is encrypted with one or more recipient public keys.
-3. `envfuse` writes encrypted output (`.age`) with strict `0600` file permissions.
-4. Any holder of a matching private identity key can decrypt the `.age` file back to plaintext.
-5. Decrypted output is written with `0600` permissions; sensitive buffers are zeroed where practical.
+```yaml
+team:
+  - name: alice
+    recipient: age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  - name: bob
+    recipient: age1yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
 
-### Internal architecture
-
-- **CLI layer (`cmd/`)**: Cobra commands, flags, argument validation.
-- **Crypto layer (`pkg/crypto`)**: thin wrappers over `age.Encrypt` and `age.Decrypt`.
-- **Root config resolution (`cmd/root.go`)**:
-  - default base path = `os.UserConfigDir()/envfuse`
-  - account-level override with `ENVFUSE_CONFIG_DIR`
-  - command-line override with `--config-dir` (highest precedence)
-
-Platform default config directory:
-- **Linux/macOS**: `~/.config/envfuse`
-- **Windows**: `%AppData%\\Roaming\\envfuse`
-
-Precedence for config directory resolution:
-1. `--config-dir`
-2. `ENVFUSE_CONFIG_DIR`
-3. platform default
-
-## Runtime prerequisites
-
-- Go 1.22+ (for building from source)
-- age-compatible X25519 key material
-
-### Required key files
-
-#### 1) Recipient list file (for `encrypt --keys`)
-
-Text file containing one recipient public key per line:
-
-```text
-# comments are allowed
-age1q...
-age1x...
+manifest:
+  - .env.local
+  - certs/localhost.crt
+  - certs/localhost.key
 ```
 
-Rules:
-- blank lines are ignored
-- lines starting with `#` are ignored
-- at least one valid recipient key is required
+### Schema
 
-#### 2) Identity file (for `decrypt --identity` or default path)
+- `team`: list of developer entries with:
+  - `name`: developer label
+  - `recipient`: public X25519 recipient key (`age1...`)
+- `manifest`: list of repository-relative file or directory targets to synchronize
 
-Text file containing a single private identity key:
+## Workspace synchronization
 
-```text
-AGE-SECRET-KEY-1...
+```bash
+envfuse sync [--config <file>]
 ```
 
-Rules:
-- content is trimmed
-- empty content fails decryption
+Default config path: `./envfuse.yaml`
 
-### Native key management engine
+### Push directive (encryption)
 
-`envfuse` now provides built-in key material generation with production-safe defaults:
+When a tracked plaintext target is newer than its store bundle:
+
+1. `envfuse sync` reads plaintext from the workspace.
+2. Encrypts for all `team` recipients.
+3. Writes an atomic encrypted bundle under:
+   - `.envfuse/store/<relative-path>.enc`
+
+### Pull directive (decryption)
+
+When a store bundle is newer than local plaintext (or plaintext is missing):
+
+1. `envfuse sync` loads local identity key from:
+   - `$ENVFUSE_CONFIG_DIR/identity.key` (if set), otherwise
+   - platform user config directory (`.../envfuse/identity.key`)
+2. Decrypts matching `.envfuse/store/*.enc` bundle.
+3. Atomically restores plaintext to its workspace-relative target path.
+
+### Terminal status output
+
+Each sync prints a scannable status line per file:
+
+- `→` encrypted to store (push)
+- `✓` decrypted to workspace (pull)
+- `•` up to date
+- `❌` error
+
+Example:
+
+```text
+→ .env.local (encrypted to workspace store)
+✓ certs/localhost.crt (decrypted from workspace store)
+• certs/localhost.key (up to date)
+sync summary: pushed=1 pulled=1 unchanged=1 failed=0
+```
+
+## Key management
+
+Generate local identity and recipient outputs:
 
 ```bash
 envfuse keys generate [--identity-out <identity.key>] [--recipients-out <recipients.txt>] [--force]
 ```
 
-What it does:
-1. Generates a fresh age X25519 keypair.
-2. Writes private identity key to `<config-dir>/identity.key` (or `--identity-out`) with mode `0600`.
-3. Writes recipient public key list to `<config-dir>/recipients.txt` (or `--recipients-out`) with mode `0600`.
-4. Refuses to overwrite existing files unless `--force` is set.
+Defaults:
 
-## Command behavior and defaults
+- identity key: `<config-dir>/identity.key`
+- recipients list: `<config-dir>/recipients.txt`
 
-### Encrypt command
+## Direct encrypt/decrypt commands
+
+Encrypt for one or more recipients:
 
 ```bash
 envfuse encrypt <target-file> --keys <recipients-file> [--out <encrypted-output>]
 ```
 
-What happens:
-1. Reads `<target-file>`.
-2. Parses recipient keys from `--keys` file.
-3. Encrypts bytes for all recipients.
-4. Writes output with mode `0600`.
-
-Defaults:
-- output path defaults to `<target-file>.age` when `--out` is omitted.
-
-### Decrypt command
+Decrypt with a local identity key:
 
 ```bash
 envfuse decrypt <encrypted-file> [--identity <identity-file>] [--out <decrypted-output>] [--config-dir <dir>]
 ```
 
-What happens:
-1. Resolves config directory (`--config-dir` or platform default).
-2. Resolves identity path:
-   - `--identity` if provided
-   - otherwise `<config-dir>/identity.key`
-3. Reads encrypted target file.
-4. Decrypts using the identity key.
-5. Writes plaintext with mode `0600`.
-
-Defaults:
-- identity path: `<config-dir>/identity.key`
-- output path: `<config-dir>/decrypted.env`
-
-### Manifest command
+Generate runtime manifest JSON:
 
 ```bash
 envfuse manifest [--out <manifest.json>] [--config-dir <dir>]
 ```
 
-What happens:
-1. Resolves config directory using the standard precedence.
-2. Ensures config directory exists with secure permissions.
-3. Generates a production-ready JSON manifest describing runtime paths and env var setup command.
+## Cross-platform notes
 
-Defaults:
-- writes JSON to stdout unless `--out` is provided
+- All paths are composed with `filepath.Join` for Windows/Linux/macOS compatibility.
+- Identity keys and parsed config scalars are trimmed for surrounding whitespace and carriage returns (`\r`).
+- Atomic writes are used for encrypted and decrypted outputs.
 
-## Local development
+## Development
 
-### Setup
+Run tests:
 
 ```bash
-go mod tidy
 go test ./...
 ```
 
-### Build
+Build:
 
 ```bash
 go build ./...
 ```
-
-## Release as a cross-platform CLI tool
-
-This repository is already configured to release `envfuse` as a CLI binary for Linux, macOS, and Windows via GoReleaser (`.goreleaser.yaml`).
-
-Release matrix:
-- **GOOS**: `linux`, `darwin` (macOS), `windows`
-- **GOARCH**: `amd64`, `arm64`
-- **binary name**: `envfuse`
-
-Archive formats:
-- `tar.gz` for Linux/macOS
-- `zip` for Windows
-
-Before building release artifacts, GoReleaser runs:
-- `go mod tidy`
-- `go test ./...`
-
-CI/CD delivery:
-- GitHub Actions workflow: `.github/workflows/release.yml`
-- automatic release on pushed tags matching `v*` (for example `v1.0.0`)
-- manual release via `workflow_dispatch`
-- artifacts are uploaded to GitHub Releases using GoReleaser
-
-## Contributing
-
-1. Fork and create a feature branch.
-2. Keep changes small and covered with tests.
-3. Run `go test ./...` before opening a PR.
-4. Use **Conventional Commits**:
-   - `feat: ...`
-   - `fix: ...`
-   - `docs: ...`
-   - `test: ...`
-   - `chore: ...`
