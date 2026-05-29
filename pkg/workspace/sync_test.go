@@ -88,8 +88,10 @@ func TestSynchronizeWorkspacePushPullRoundTrip(t *testing.T) {
 	if err = os.WriteFile(plainPath, []byte("TOKEN=local-updated\n"), 0o600); err != nil {
 		t.Fatalf("update plaintext: %v", err)
 	}
-	// Ensure modified time ordering is deterministic on all platforms.
-	time.Sleep(20 * time.Millisecond)
+	now := time.Now().UTC().Add(2 * time.Second)
+	if err = os.Chtimes(plainPath, now, now); err != nil {
+		t.Fatalf("set plaintext mtime: %v", err)
+	}
 
 	if _, err = SynchronizeWorkspaceWithReport(blueprintPath); err != nil {
 		t.Fatalf("second push sync failed: %v", err)

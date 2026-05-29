@@ -9,6 +9,7 @@ import (
 )
 
 var syncConfigPath string
+var syncPlainOutput bool
 
 var syncCmd = &cobra.Command{
 	Use:   "sync",
@@ -21,17 +22,13 @@ var syncCmd = &cobra.Command{
 
 		report, err := workspace.SynchronizeWorkspaceWithReport(blueprintPath)
 		if report != nil {
-			renderSyncReport(report)
+			renderSyncReport(report, syncPlainOutput)
 		}
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return err
 	},
 }
 
-func renderSyncReport(report *workspace.SyncReport) {
+func renderSyncReport(report *workspace.SyncReport, plain bool) {
 	var pushed int
 	var pulled int
 	var unchanged int
@@ -62,6 +59,10 @@ func renderSyncReport(report *workspace.SyncReport) {
 			summary = status.Message
 		}
 
+		if plain {
+			symbol = plainSymbol(status.Action, status.Err != nil)
+		}
+
 		fmt.Fprintf(rootCmd.OutOrStdout(), "%s %s (%s)\n", symbol, status.Path, summary)
 	}
 
@@ -75,7 +76,22 @@ func renderSyncReport(report *workspace.SyncReport) {
 	)
 }
 
+func plainSymbol(action workspace.SyncAction, hasError bool) string {
+	if hasError {
+		return "[ERROR]"
+	}
+	switch action {
+	case workspace.SyncActionPush:
+		return "[PUSH]"
+	case workspace.SyncActionPull:
+		return "[PULL]"
+	default:
+		return "[OK]"
+	}
+}
+
 func init() {
 	syncCmd.Flags().StringVar(&syncConfigPath, "config", "", "Path to workspace blueprint file (default: ./envfuse.yaml)")
+	syncCmd.Flags().BoolVar(&syncPlainOutput, "plain", false, "Use ASCII-only status markers")
 	rootCmd.AddCommand(syncCmd)
 }

@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"os"
@@ -18,6 +19,8 @@ const (
 	SyncActionPush SyncAction = "push"
 	SyncActionPull SyncAction = "pull"
 	SyncActionNoop SyncAction = "noop"
+
+	maxErrorSummaryDetails = 5
 )
 
 type FileSyncStatus struct {
@@ -96,8 +99,9 @@ func SynchronizeWorkspaceWithReport(configPath string) (*SyncReport, error) {
 			continue
 		}
 
-		shouldPush := plainExists && (!storeExists || plainInfo.ModTime().After(storeInfo.ModTime()))
-		shouldPull := storeExists && (!plainExists || storeInfo.ModTime().After(plainInfo.ModTime()))
+		action := determineSyncAction(plainInfo, storeInfo, plainExists, storeExists, tracked.AbsPath, tracked.StorePath, identityKey)
+		shouldPush := action == SyncActionPush
+		shouldPull := action == SyncActionPull
 
 		if shouldPush {
 			payload, readErr := os.ReadFile(tracked.AbsPath)
@@ -190,7 +194,11 @@ func SynchronizeWorkspaceWithReport(configPath string) (*SyncReport, error) {
 	}
 
 	if len(statusErrs) > 0 {
-		return report, fmt.Errorf("workspace sync completed with %d error(s): %s", len(statusErrs), strings.Join(statusErrs, "; "))
+		totalErrors := len(statusErrs)
+		if len(statusErrs) > maxErrorSummaryDetails {
+			statusErrs = append(statusErrs[:maxErrorSummaryDetails], fmt.Sprintf("...and %d more", totalErrors-maxErrorSummaryDetails))
+		}
+		return report, fmt.Errorf("workspace sync completed with %d error(s): %s", totalErrors, strings.Join(statusErrs, "; "))
 	}
 
 	return report, nil
@@ -376,4 +384,58 @@ func zeroBytes(data []byte) {
 	for index := range data {
 		data[index] = 0
 	}
+}
+
+func comparePlaintextToStore(plainPath, storePath, identityKey string) (bool, error) {
+	if identityKey == "" {
+		return false, fmt.Errorf("identity key not available")
+	}
+
+	plain, err := os.ReadFile(plainPath)
+	if err != nil {
+		return false, fmt.Errorf("read plaintext %q: %w", plainPath, err)
+	}
+	defer zeroBytes(plain)
+
+	encrypted, err := os.ReadFile(storePath)
+	if err != nil {
+		return false, fmt.Errorf("read encrypted store file %q: %w", storePath, err)
+	}
+	defer zeroBytes(encrypted)
+
+	decrypted, err := enc.DecryptBytes(encrypted, identityKey)
+	if err != nil {
+		return false, fmt.Errorf("decrypt store file %q: %w", storePath, err)
+	}
+	defer zeroBytes(decrypted)
+
+	return bytes.Equal(plain, decrypted), nil
+}
+
+func determineSyncAction(
+	plainInfo os.FileInfo,
+	storeInfo os.FileInfo,
+	plainExists bool,
+	storeExists bool,
+	plainPath string,
+	storePath string,
+	identityKey string,
+) SyncAction {
+	shouldPush := plainExists && (!storeExists || plainInfo.ModTime().After(storeInfo.ModTime()))
+	shouldPull := storeExists && (!plainExists || storeInfo.ModTime().After(plainInfo.ModTime()))
+	if plainExists && storeExists && plainInfo.ModTime().Equal(storeInfo.ModTime()) {
+		inSync, compareErr := comparePlaintextToStore(plainPath, storePath, identityKey)
+		if compareErr == nil && inSync {
+			return SyncActionNoop
+		}
+		return SyncActionPush
+	}
+
+	if shouldPush {
+		return SyncActionPush
+	}
+	if shouldPull {
+		return SyncActionPull
+	}
+	return SyncActionNoop
 }

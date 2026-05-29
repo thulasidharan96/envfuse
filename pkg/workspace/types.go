@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,13 +25,19 @@ type Blueprint struct {
 }
 
 func (m TeamMember) RecipientKey() string {
-	if key := normalizeScalar(m.Recipient); key != "" {
-		return key
+	// Field precedence intentionally prefers explicit recipient naming:
+	// recipient -> public_key -> key.
+	// This keeps backward compatibility with alternate blueprint field names.
+	recipient := normalizeScalar(m.Recipient)
+	publicKey := normalizeScalar(m.PublicKey)
+	key := normalizeScalar(m.Key)
+	if recipient != "" {
+		return recipient
 	}
-	if key := normalizeScalar(m.PublicKey); key != "" {
-		return key
+	if publicKey != "" {
+		return publicKey
 	}
-	return normalizeScalar(m.Key)
+	return key
 }
 
 func (m TeamMember) DisplayName() string {
@@ -52,7 +59,7 @@ func LoadBlueprint(configPath string) (*Blueprint, error) {
 		return nil, fmt.Errorf("read blueprint %q: %w", absPath, err)
 	}
 
-	decoder := yaml.NewDecoder(strings.NewReader(string(raw)))
+	decoder := yaml.NewDecoder(bytes.NewReader(raw))
 	decoder.KnownFields(true)
 
 	var blueprint Blueprint

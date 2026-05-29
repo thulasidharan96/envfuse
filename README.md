@@ -39,7 +39,7 @@ manifest:
 ## Workspace synchronization
 
 ```bash
-envfuse sync [--config <file>]
+envfuse sync [--config <file>] [--plain]
 ```
 
 Default config path: `./envfuse.yaml`
@@ -71,6 +71,8 @@ Each sync prints a scannable status line per file:
 - `✓` decrypted to workspace (pull)
 - `•` up to date
 - `❌` error
+
+Use `--plain` for ASCII-only markers (`[PUSH]`, `[PULL]`, `[OK]`, `[ERROR]`).
 
 Example:
 
